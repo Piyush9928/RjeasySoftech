@@ -1,0 +1,175 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+config/db.js
+package.json
+routes/auth.js
+server.js
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="config/db.js">
+// config/db.js
+const sql = require("mssql");
+
+const config = {
+  user: "sa",                         // SQL username
+  password: "YOUR_DB_PASSWORD",       // SQL password
+  server: "localhost",       // DB host IP/URL e.g. 192.168.1.50 or localhost
+  database: "YOUR_DATABASE_NAME",     // Database name — jisme tbl_users hai
+  options: {
+    trustServerCertificate: true,
+    enableArithAbort: true,
+    encrypt: false // If using remote Azure SQL then true
+  },
+  pool: {
+    max: 10,
+    min: 0,
+    idleTimeoutMillis: 30000
+  }
+};
+
+module.exports = config;
+</file>
+
+<file path="package.json">
+{
+  "name": "rjeasyapi",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mssql": "^12.1.1"
+  }
+}
+</file>
+
+<file path="routes/auth.js">
+const express = require("express");
+const router = express.Router();
+const sql = require("mssql");
+const jwt = require("jsonwebtoken");
+const config = require("../config/db");
+
+router.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  console.log("📩 Incoming Login Request:");
+  console.log("Username:", username);
+  console.log("Password:", password);
+
+  try {
+    console.log("⏳ Connecting to SQL Server...");
+    let pool = await sql.connect(config);
+    console.log("✅ Connected to SQL Server");
+
+    console.log("⏳ Running SQL Query...");
+    let result = await pool
+      .request()
+      .input("username", sql.VarChar, username)
+      .query("SELECT * FROM tbl_users WHERE username=@username AND isactive=1");
+
+    console.log("📦 Query Result:", result.recordset);
+
+    if (result.recordset.length === 0) {
+      console.log("❌ No user found or inactive");
+      return res.json({ status: "failed", message: "User not found or inactive" });
+    }
+
+    const user = result.recordset[0];
+    console.log("👤 Found User:", user);
+
+    console.log("🔐 Checking password match...");
+    if (user.passw !== password) {
+      console.log("❌ Password mismatch. DB:", user.passw, "Input:", password);
+      return res.json({ status: "failed", message: "Incorrect password" });
+    }
+
+    console.log("🎉 Password match! Generating token...");
+    const token = jwt.sign({ id: user.userid }, "JWT_SECRET_KEY");
+
+    console.log("🔑 Token:", token);
+
+    return res.json({
+      status: "success",
+      token,
+      userid: user.userid,
+      fullname: user.fullname,
+    });
+
+  } catch (err) {
+    console.log("💥 ERROR:", err);
+    return res.status(500).send({ status: "error", message: "Server error" });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="server.js">
+const express = require("express");
+const cors = require("cors");
+const authRoutes = require("./routes/auth");
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use("/api", authRoutes);
+
+const port = 5000;
+app.listen(port, () => console.log(`API running on port ${port}`));
+</file>
+
+</files>
